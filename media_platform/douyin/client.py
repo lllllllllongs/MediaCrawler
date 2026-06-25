@@ -41,6 +41,7 @@ from .help import *
 
 
 class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
+    NETWORK_RETRY_COUNT = 3
 
     def __init__(
         self,
@@ -124,8 +125,7 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         # Check whether the proxy has expired before each request
         await self._refresh_proxy_if_expired()
 
-        async with make_async_client(proxy=self.proxy) as client:
-            response = await client.request(method, url, timeout=self.timeout, **kwargs)
+        response = await self._request_with_retry(method, url, **kwargs)
         try:
             if response.text == "" or response.text == "blocked":
                 utils.logger.error(f"request params incrr, response.text: {response.text}")
@@ -133,6 +133,30 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
             return response.json()
         except Exception as e:
             raise DataFetchError(f"{e}, {response.text}")
+
+    async def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
+        for attempt in range(1, self.NETWORK_RETRY_COUNT + 1):
+            try:
+                async with make_async_client(
+                    proxy=self.proxy,
+                    trust_env=False,
+                ) as client:
+                    return await client.request(
+                        method,
+                        url,
+                        timeout=self.timeout,
+                        **kwargs,
+                    )
+            except httpx.TransportError as exc:
+                if attempt == self.NETWORK_RETRY_COUNT:
+                    raise
+                delay = attempt * 2
+                utils.logger.warning(
+                    "[DouYinClient] Network request failed "
+                    f"(attempt {attempt}/{self.NETWORK_RETRY_COUNT}): "
+                    f"{type(exc).__name__}; retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
 
     async def get(self, uri: str, params: Optional[Dict] = None, headers: Optional[Dict] = None):
         """
@@ -345,7 +369,7 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         return result
 
     async def get_aweme_media(self, url: str) -> Union[bytes, None]:
-        async with make_async_client(proxy=self.proxy) as client:
+        async with make_async_client(proxy=self.proxy, trust_env=False) as client:
             try:
                 response = await client.request("GET", url, timeout=self.timeout, follow_redirects=True)
                 response.raise_for_status()
@@ -366,7 +390,11 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         Returns:
             重定向后的完整URL
         """
-        async with make_async_client(proxy=self.proxy, follow_redirects=False) as client:
+        async with make_async_client(
+            proxy=self.proxy,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
             try:
                 utils.logger.info(f"[DouYinClient.resolve_short_url] Resolving short URL: {short_url}")
                 response = await client.get(short_url, timeout=10)

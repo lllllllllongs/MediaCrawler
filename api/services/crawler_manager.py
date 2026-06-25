@@ -202,9 +202,16 @@ class CrawlerManager:
             "error_message": None
         }
 
+    def _python_command(self) -> list:
+        """Return the most stable Python command for launching main.py."""
+        venv_python = self._project_root / ".venv" / "Scripts" / "python.exe"
+        if venv_python.exists():
+            return [str(venv_python)]
+        return ["uv", "run", "python"]
+
     def _build_command(self, config: CrawlerStartRequest) -> list:
         """Build main.py command line arguments"""
-        cmd = ["uv", "run", "python", "main.py"]
+        cmd = [*self._python_command(), "main.py"]
 
         cmd.extend(["--platform", config.platform.value])
         cmd.extend(["--lt", config.login_type.value])

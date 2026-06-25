@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from playwright.async_api import (
     BrowserContext,
     BrowserType,
+    Error as PlaywrightError,
     Page,
     Playwright,
     async_playwright,
@@ -95,7 +96,7 @@ class DouYinCrawler(AbstractCrawler):
                 await self.browser_context.add_init_script(path="libs/stealth.min.js")
 
             self.context_page = await self.browser_context.new_page()
-            await self.context_page.goto(self.index_url)
+            await self.open_index_page()
 
             self.dy_client = await self.create_douyin_client(httpx_proxy_format)
             if not await self.dy_client.pong(browser_context=self.browser_context):
@@ -123,6 +124,27 @@ class DouYinCrawler(AbstractCrawler):
                 await self.get_creators_and_videos()
 
             utils.logger.info("[DouYinCrawler.start] Douyin Crawler finished ...")
+
+    async def open_index_page(self) -> None:
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                await self.context_page.goto(
+                    self.index_url,
+                    wait_until="domcontentloaded",
+                    timeout=60_000,
+                )
+                return
+            except PlaywrightError as exc:
+                if attempt == max_attempts:
+                    raise
+                delay = attempt * 3
+                utils.logger.warning(
+                    "[DouYinCrawler] Failed to open Douyin homepage "
+                    f"(attempt {attempt}/{max_attempts}): {exc}; "
+                    f"retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
 
     async def search(self) -> None:
         utils.logger.info("[DouYinCrawler.search] Begin search douyin keywords")

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -93,3 +93,27 @@ async def test_launched_browser_uses_discovered_websocket_url(monkeypatch):
     playwright.chromium.connect_over_cdp.assert_awaited_once_with(
         "ws://localhost:9223/devtools/browser/generated-id"
     )
+
+
+@pytest.mark.asyncio
+async def test_websocket_discovery_bypasses_environment_proxy():
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {
+        "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/browser/test"
+    }
+
+    client = AsyncMock()
+    client.get.return_value = response
+    context_manager = AsyncMock()
+    context_manager.__aenter__.return_value = client
+
+    with patch("tools.cdp_browser.httpx.AsyncClient", return_value=context_manager) as factory:
+        websocket_url = await CDPBrowserManager()._get_browser_websocket_url(9222)
+
+    factory.assert_called_once_with(trust_env=False)
+    client.get.assert_awaited_once_with(
+        "http://127.0.0.1:9222/json/version",
+        timeout=10,
+    )
+    assert websocket_url == "ws://127.0.0.1:9222/devtools/browser/test"

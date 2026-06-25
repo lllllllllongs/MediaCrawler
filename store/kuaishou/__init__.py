@@ -57,23 +57,33 @@ async def update_kuaishou_video(video_item: Dict):
     if not video_id:
         return
     user_info = video_item.get("author", {})
+    create_time = photo_info.get("timestamp")
+    like_count = photo_info.get("realLikeCount", 0)
+    view_count = photo_info.get("viewCount", 0)
     save_content_item = {
         "video_id": video_id,
         "video_type": str(video_item.get("type")),
         "title": photo_info.get("caption", "")[:500],
         "desc": photo_info.get("caption", "")[:500],
-        "create_time": photo_info.get("timestamp"),
+        "create_time": create_time,
+        "publish_time": utils.get_time_str_from_unix_time(create_time) if create_time else "",
         "user_id": user_info.get("id"),
         "nickname": user_info.get("name"),
         "avatar": user_info.get("headerUrl", ""),
-        "liked_count": str(photo_info.get("realLikeCount")),
-        "viewd_count": str(photo_info.get("viewCount")),
+        "liked_count": str(like_count),
+        "like_count": str(like_count),
+        "viewd_count": str(view_count),
+        "view_count": str(view_count),
+        "comment_count": str(photo_info.get("commentCount", 0)),
         "last_modify_ts": utils.get_current_timestamp(),
         "video_url": f"https://www.kuaishou.com/short-video/{video_id}",
         "video_cover_url": photo_info.get("coverUrl", ""),
         "video_play_url": photo_info.get("photoUrl", ""),
         "source_keyword": source_keyword_var.get(),
     }
+    if config.SAVE_DATA_OPTION in {"db", "sqlite", "postgres"}:
+        for field in ("publish_time", "like_count", "view_count", "comment_count"):
+            save_content_item.pop(field)
     utils.logger.info(
         f"[store.kuaishou.update_kuaishou_video] Kuaishou video id:{video_id}, title:{save_content_item.get('title')}")
     await KuaishouStoreFactory.create_store().store_content(content_item=save_content_item)
@@ -95,6 +105,10 @@ async def update_ks_video_comment(video_id: str, comment_item: Dict):
     save_comment_item = {
         "comment_id": str(comment_id) if comment_id else None,  # Convert to string for storage
         "create_time": comment_item.get("timestamp"),
+        "publish_time": (
+            utils.get_time_str_from_unix_time(comment_item.get("timestamp"))
+            if comment_item.get("timestamp") else ""
+        ),
         "video_id": video_id,
         "content": comment_item.get("content"),
         # V2: author_id, Old: authorId
@@ -102,10 +116,14 @@ async def update_ks_video_comment(video_id: str, comment_item: Dict):
         # V2: author_name, Old: authorName
         "nickname": comment_item.get("author_name") or comment_item.get("authorName"),
         "avatar": comment_item.get("headurl"),
+        "like_count": str(comment_item.get("likeCount", 0)),
         # V2: commentCount, Old: subCommentCount
         "sub_comment_count": str(comment_item.get("commentCount") or comment_item.get("subCommentCount", 0)),
         "last_modify_ts": utils.get_current_timestamp(),
     }
+    if config.SAVE_DATA_OPTION in {"db", "sqlite", "postgres"}:
+        for field in ("publish_time", "like_count"):
+            save_comment_item.pop(field)
     utils.logger.info(
         f"[store.kuaishou.update_ks_video_comment] Kuaishou video comment: {comment_id}, content: {save_comment_item.get('content')}")
     await KuaishouStoreFactory.create_store().store_comment(comment_item=save_comment_item)

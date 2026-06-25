@@ -31,7 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from .routers import crawler_router, data_router, websocket_router
+from .routers import crawler_router, dashboard_router, data_router, websocket_router
 
 app = FastAPI(
     title="MediaCrawler WebUI API",
@@ -58,6 +58,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(crawler_router, prefix="/api")
+app.include_router(dashboard_router, prefix="/api")
 app.include_router(data_router, prefix="/api")
 app.include_router(websocket_router, prefix="/api")
 
@@ -85,13 +86,19 @@ async def health_check():
 async def check_environment():
     """Check if MediaCrawler environment is configured correctly"""
     try:
-        # Run uv run main.py --help command to check environment
+        # Run a lightweight dependency check with the current interpreter.
+        # When the WebUI is launched from .venv, this avoids uv cache permission issues.
+        check_code = (
+            "import fastapi, playwright, sqlalchemy, aiosqlite; "
+            "import cmd_arg; "
+            "print('MediaCrawler environment OK')"
+        )
         if sys.platform == "win32":
             loop = asyncio.get_running_loop()
             process = await loop.run_in_executor(
                 None,
                 lambda: subprocess.run(
-                    ["uv", "run", "main.py", "--help"],
+                    [sys.executable, "-c", check_code],
                     capture_output=True,
                     timeout=30.0,
                     cwd="."
@@ -100,7 +107,7 @@ async def check_environment():
             stdout, stderr = process.stdout, process.stderr  # bytes
         else:
             process = await asyncio.create_subprocess_exec(
-                "uv", "run", "main.py", "--help",
+                sys.executable, "-c", check_code,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd="."  # Project root directory
@@ -131,8 +138,8 @@ async def check_environment():
     except FileNotFoundError:
         return {
             "success": False,
-            "message": "uv command not found",
-            "error": "Please ensure uv is installed and configured in system PATH"
+            "message": "Python executable not found",
+            "error": "Please start WebUI from the project virtual environment"
         }
     except Exception as e:
         return {

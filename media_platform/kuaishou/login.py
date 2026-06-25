@@ -80,7 +80,9 @@ class KuaishouLogin(AbstractLogin):
         login_button_ele = self.context_page.locator(
             "xpath=//p[text()='登录']"
         )
-        await login_button_ele.click()
+        login_modal = self.context_page.locator(".login-modal-v2 .modal")
+        if await login_modal.count() == 0:
+            await login_button_ele.click(force=True)
 
         # find login qrcode
         qrcode_img_selector = "//div[@class='qrcode-img']//img"

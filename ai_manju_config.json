@@ -1,0 +1,25 @@
+{
+  "keywords": [
+    "AI漫剧",
+    "AI短剧",
+    "AI动画",
+    "漫剧",
+    "AI漫画短剧"
+  ],
+  "platforms": ["xhs", "dy", "ks"],
+  "login_type": "qrcode",
+  "save_data_option": "sqlite",
+  "headless": false,
+  "get_comments": true,
+  "get_sub_comments": false,
+  "max_notes_per_platform": 100,
+  "max_comments_per_item": 50,
+  "max_concurrency": 1,
+  "interval_seconds": 21600,
+  "command_timeout_seconds": 1800,
+  "creator_ids": {
+    "xhs": [],
+    "dy": [],
+    "ks": []
+  }
+}

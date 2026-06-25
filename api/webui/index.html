@@ -8,7 +8,298 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-DvClRayq.js"></script>
+    <style>
+      footer,
+      header a[href="https://github.com/NanmiCoder/MediaCrawler"],
+      header button[class*="border-cyber-neon-orange"] {
+        display: none !important;
+      }
+      #max-notes-count-field .max-notes-hint {
+        margin-top: 4px;
+        color: rgb(var(--cyber-text-muted));
+        font-size: 10px;
+      }
+      #control-dashboard-nav {
+        position: absolute;
+        top: 12px;
+        left: calc(50vw - 44px);
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        overflow-x: auto;
+      }
+      #control-dashboard-nav a {
+        display: inline-flex;
+        width: 52px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 1px solid rgb(var(--cyber-neon-cyan) / .45);
+        border-radius: 4px;
+        color: rgb(var(--cyber-neon-cyan));
+        font-size: 12px;
+        font-family: "Microsoft YaHei", sans-serif;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      #control-dashboard-nav a:nth-child(-n + 2) {
+        width: 72px;
+      }
+      #control-dashboard-nav a:hover {
+        background: rgb(var(--cyber-neon-cyan) / .12);
+      }
+      #control-dashboard-nav a.active {
+        color: rgb(var(--cyber-bg-primary));
+        background: rgb(var(--cyber-neon-cyan));
+      }
+      #terminal-resize-handle {
+        position: relative;
+        flex: 0 0 16px;
+        width: 100%;
+        cursor: ns-resize;
+        touch-action: none;
+      }
+      #terminal-resize-handle::after {
+        position: absolute;
+        top: 7px;
+        left: 50%;
+        width: 64px;
+        height: 2px;
+        border-radius: 2px;
+        background: rgb(var(--cyber-neon-cyan) / .45);
+        content: "";
+        opacity: .65;
+        transform: translateX(-50%);
+        transition: opacity .15s;
+      }
+      #terminal-resize-handle:hover::after,
+      #terminal-resize-handle.dragging::after {
+        opacity: 1;
+      }
+      #terminal-reset-height {
+        min-height: 28px;
+        padding: 0 9px;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        color: #8b949e;
+        background: transparent;
+        font-size: 11px;
+        font-family: "Microsoft YaHei", sans-serif;
+        cursor: pointer;
+      }
+      #terminal-reset-height:hover {
+        color: rgb(var(--cyber-neon-cyan));
+        border-color: rgb(var(--cyber-neon-cyan) / .5);
+        background: rgb(var(--cyber-neon-cyan) / .08);
+      }
+    </style>
+    <script>
+      (() => {
+        const storageKey = "mediacrawler_max_notes_count";
+        const readLimit = () => {
+          const value = Number.parseInt(localStorage.getItem(storageKey) || "40", 10);
+          return Number.isFinite(value) && value > 0 ? value : 40;
+        };
+
+        const originalOpen = XMLHttpRequest.prototype.open;
+        const originalSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.open = function(method, url, ...args) {
+          this.__crawlerMethod = method;
+          this.__crawlerUrl = String(url);
+          return originalOpen.call(this, method, url, ...args);
+        };
+        XMLHttpRequest.prototype.send = function(body) {
+          if (
+            this.__crawlerMethod === "POST"
+            && this.__crawlerUrl.includes("/api/crawler/start")
+            && typeof body === "string"
+          ) {
+            try {
+              const payload = JSON.parse(body);
+              if (payload.crawler_type === "search") {
+                payload.max_notes_count = readLimit();
+                body = JSON.stringify(payload);
+              }
+            } catch (_) {
+              // Keep the original request body when it is not JSON.
+            }
+          }
+          return originalSend.call(this, body);
+        };
+
+        function addLimitField() {
+          if (document.getElementById("max-notes-count-field")) return;
+          const startLabel = [...document.querySelectorAll("label")]
+            .find(label => label.textContent.trim() === "起始页");
+          if (!startLabel) return;
+
+          const startField = startLabel.parentElement?.parentElement;
+          const startInput = startField?.querySelector("input");
+          const grid = startField?.parentElement;
+          if (!startField || !startInput || !grid) return;
+
+          const field = document.createElement("div");
+          field.id = "max-notes-count-field";
+          field.className = startField.className;
+
+          const label = document.createElement("label");
+          label.className = startLabel.className;
+          label.textContent = "单关键词抓取量";
+
+          const input = document.createElement("input");
+          input.type = "number";
+          input.min = "20";
+          input.max = "10000";
+          input.step = "20";
+          input.value = String(readLimit());
+          input.className = startInput.className;
+          input.addEventListener("change", () => {
+            const value = Math.max(20, Number.parseInt(input.value || "40", 10));
+            input.value = String(value);
+            localStorage.setItem(storageKey, String(value));
+          });
+
+          const hint = document.createElement("div");
+          hint.className = "max-notes-hint";
+          hint.textContent = "快手建议填写 20、40 或 60";
+
+          field.append(label, input, hint);
+          grid.appendChild(field);
+        }
+
+        function addDashboardNavigation() {
+          if (document.getElementById("control-dashboard-nav")) return;
+          const header = document.querySelector("header");
+          const row = header?.firstElementChild;
+          const rightControls = row?.lastElementChild;
+          if (!row || !rightControls) return;
+
+          const nav = document.createElement("nav");
+          nav.id = "control-dashboard-nav";
+          [
+            ["/", "爬虫控制台", true],
+            ["/static/main.html", "看板首页", false],
+            ["/static/kuaishou-dashboard.html", "快手", false],
+            ["/static/douyin-dashboard.html", "抖音", false],
+            ["/static/xiaohongshu-dashboard.html", "小红书", false]
+          ].forEach(([href, text, active]) => {
+            const link = document.createElement("a");
+            link.href = href;
+            link.textContent = text;
+            if (active) link.className = "active";
+            nav.appendChild(link);
+          });
+          row.insertBefore(nav, rightControls);
+        }
+
+        function addTerminalResize() {
+          if (document.getElementById("terminal-resize-handle")) return;
+          const title = [...document.querySelectorAll("span")]
+            .find(element => element.textContent.trim() === "系统控制台");
+          const terminal = title?.parentElement?.parentElement?.parentElement;
+          const main = terminal?.parentElement;
+          const content = main?.parentElement;
+          const configuration = main?.previousElementSibling;
+          if (!terminal || !main || !content || main.tagName !== "MAIN") return;
+
+          const heightKey = "mediacrawler_terminal_height";
+          const defaultHeight = 300;
+          const minHeight = 150;
+          const minConfigurationHeight = 140;
+          const maxHeight = () => {
+            const style = getComputedStyle(content);
+            const padding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+            return Math.max(
+              minHeight,
+              content.clientHeight - padding - minConfigurationHeight - 16
+            );
+          };
+          const readHeight = () => {
+            const stored = Number.parseInt(localStorage.getItem(heightKey) || "", 10);
+            return Math.min(maxHeight(), Math.max(minHeight, stored || defaultHeight));
+          };
+
+          content.style.gap = "0";
+          if (configuration) {
+            configuration.style.flex = "1 1 auto";
+            configuration.style.minHeight = `${minConfigurationHeight}px`;
+            configuration.style.overflow = "auto";
+          }
+          main.style.flex = "none";
+          main.style.position = "relative";
+          main.style.overflow = "hidden";
+
+          const handle = document.createElement("div");
+          handle.id = "terminal-resize-handle";
+          handle.title = "拖动分配配置区和终端区的高度";
+          content.insertBefore(handle, main);
+
+          const reset = document.createElement("button");
+          reset.id = "terminal-reset-height";
+          reset.type = "button";
+          reset.textContent = "恢复高度";
+          reset.title = "恢复终端默认高度";
+          title.parentElement?.parentElement?.lastElementChild?.prepend(reset);
+
+          const syncCollapsedState = () => {
+            const collapsed = terminal.classList.contains("h-12");
+            handle.hidden = collapsed;
+            main.style.height = collapsed ? "48px" : `${readHeight()}px`;
+          };
+
+          let startY = 0;
+          let startHeight = 0;
+          const onPointerMove = event => {
+            const height = Math.min(
+              maxHeight(),
+              Math.max(minHeight, startHeight + startY - event.clientY)
+            );
+            main.style.height = `${height}px`;
+          };
+          const onPointerUp = () => {
+            handle.classList.remove("dragging");
+            localStorage.setItem(heightKey, String(Math.round(main.getBoundingClientRect().height)));
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", onPointerUp);
+          };
+          handle.addEventListener("pointerdown", event => {
+            event.preventDefault();
+            startY = event.clientY;
+            startHeight = main.getBoundingClientRect().height;
+            handle.classList.add("dragging");
+            window.addEventListener("pointermove", onPointerMove);
+            window.addEventListener("pointerup", onPointerUp);
+          });
+          const resetHeight = () => {
+            localStorage.setItem(heightKey, String(defaultHeight));
+            main.style.height = `${Math.min(defaultHeight, maxHeight())}px`;
+          };
+          handle.addEventListener("dblclick", resetHeight);
+          reset.addEventListener("click", resetHeight);
+
+          new MutationObserver(syncCollapsedState).observe(terminal, {
+            attributes: true,
+            attributeFilter: ["class"]
+          });
+          window.addEventListener("resize", syncCollapsedState);
+          syncCollapsedState();
+        }
+
+        const observer = new MutationObserver(() => {
+          addLimitField();
+          addDashboardNavigation();
+          addTerminalResize();
+        });
+        document.addEventListener("DOMContentLoaded", () => {
+          observer.observe(document.getElementById("root"), {childList: true, subtree: true});
+          addLimitField();
+          addDashboardNavigation();
+          addTerminalResize();
+        });
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DvClRayq.js?v=defaults-dy-db-1"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-OiBmsgXF.css">
   </head>
   <body>

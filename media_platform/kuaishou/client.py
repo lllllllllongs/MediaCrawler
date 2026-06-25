@@ -41,6 +41,8 @@ from .graphql import KuaiShouGraphQL
 
 
 class KuaiShouClient(AbstractApiClient, ProxyRefreshMixin):
+    NETWORK_RETRY_COUNT = 3
+
     def __init__(
         self,
         timeout=10,
@@ -67,13 +69,36 @@ class KuaiShouClient(AbstractApiClient, ProxyRefreshMixin):
         # Check if proxy is expired before each request
         await self._refresh_proxy_if_expired()
 
-        async with make_async_client(proxy=self.proxy) as client:
-            response = await client.request(method, url, timeout=self.timeout, **kwargs)
+        response = await self._request_with_retry(method, url, **kwargs)
         data: Dict = response.json()
         if data.get("errors"):
             raise DataFetchError(data.get("errors", "unkonw error"))
         else:
             return data.get("data", {})
+
+    async def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
+        for attempt in range(1, self.NETWORK_RETRY_COUNT + 1):
+            try:
+                async with make_async_client(
+                    proxy=self.proxy,
+                    trust_env=False,
+                ) as client:
+                    return await client.request(
+                        method,
+                        url,
+                        timeout=self.timeout,
+                        **kwargs,
+                    )
+            except httpx.TransportError as exc:
+                if attempt == self.NETWORK_RETRY_COUNT:
+                    raise
+                delay = attempt * 2
+                utils.logger.warning(
+                    "[KuaiShouClient] Network request failed "
+                    f"(attempt {attempt}/{self.NETWORK_RETRY_COUNT}): "
+                    f"{type(exc).__name__}; retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
 
     async def get(self, uri: str, params=None) -> Dict:
         final_uri = uri
@@ -99,14 +124,12 @@ class KuaiShouClient(AbstractApiClient, ProxyRefreshMixin):
         await self._refresh_proxy_if_expired()
 
         json_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
-        async with make_async_client(proxy=self.proxy) as client:
-            response = await client.request(
-                method="POST",
-                url=f"{self._rest_host}{uri}",
-                data=json_str,
-                timeout=self.timeout,
-                headers=self.headers,
-            )
+        response = await self._request_with_retry(
+            method="POST",
+            url=f"{self._rest_host}{uri}",
+            data=json_str,
+            headers=self.headers,
+        )
         result: Dict = response.json()
         if result.get("result") != 1:
             raise DataFetchError(f"REST API V2 error: {result}")

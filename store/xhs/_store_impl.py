@@ -357,12 +357,21 @@ class XhsMongoStoreImplement(AbstractStore):
         utils.logger.info(f"[XhsMongoStoreImplement.store_creator] Saved creator {user_id} to MongoDB")
 
 
-class XhsExcelStoreImplement:
+class XhsExcelStoreImplement(ExcelStoreBase):
     """Xiaohongshu Excel storage implementation - Global singleton"""
 
     def __new__(cls, *args, **kwargs):
-        from store.excel_store_base import ExcelStoreBase
-        return ExcelStoreBase.get_instance(
-            platform="xhs",
-            crawler_type=crawler_type_var.get()
-        )
+        key = f"xhs_{crawler_type_var.get()}"
+        with ExcelStoreBase._lock:
+            instance = ExcelStoreBase._instances.get(key)
+            if not isinstance(instance, cls):
+                instance = object.__new__(cls)
+                instance._excel_initialized = False
+                ExcelStoreBase._instances[key] = instance
+            return instance
+
+    def __init__(self, *args, **kwargs):
+        if getattr(self, "_excel_initialized", False):
+            return
+        super().__init__(platform="xhs", crawler_type=crawler_type_var.get())
+        self._excel_initialized = True

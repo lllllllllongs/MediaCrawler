@@ -191,6 +191,10 @@ class KuaishouVideo(Base):
     create_time = Column(BigInteger, index=True, comment='创建时间戳')
     liked_count = Column(Text, comment='点赞数')
     viewd_count = Column(Text, comment='观看数')
+    like_count = Column(Text, comment='点赞数（可读字段）')
+    view_count = Column(Text, comment='播放数（可读字段）')
+    comment_count = Column(Text, comment='评论数')
+    publish_time = Column(String(255), index=True, comment='发布时间')
     video_url = Column(Text, comment='视频URL')
     video_cover_url = Column(Text, comment='视频封面URL')
     video_play_url = Column(Text, comment='视频播放URL')
@@ -209,6 +213,8 @@ class KuaishouVideoComment(Base):
     content = Column(Text, comment='评论内容')
     create_time = Column(BigInteger, comment='创建时间戳')
     sub_comment_count = Column(Text, comment='子评论数')
+    like_count = Column(Text, default='0', comment='点赞数')
+    publish_time = Column(String(255), index=True, comment='发布时间')
 
 class WeiboNote(Base):
     __tablename__ = 'weibo_note'

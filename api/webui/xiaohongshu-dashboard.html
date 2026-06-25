@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小红书 AI 漫剧数据看板</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body data-platform="xiaohongshu">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">M</div><div><h1>MediaCrawler</h1><p>MySQL 内容与评论分析</p></div></div>
+    <nav class="nav">
+      <a href="/">爬虫控制台</a><a href="/static/main.html">看板首页</a>
+      <a href="/static/kuaishou-dashboard.html">快手</a>
+      <a href="/static/douyin-dashboard.html">抖音</a>
+      <a class="active" href="/static/xiaohongshu-dashboard.html">小红书</a>
+    </nav>
+  </header>
+  <main class="page">
+    <div id="status" class="status">正在读取 MySQL 数据...</div>
+    <section class="kpis">
+      <div class="kpi"><span>内容总数</span><strong id="contentCount">-</strong></div>
+      <div class="kpi"><span>漫剧及相关</span><strong id="relevantCount">-</strong></div>
+      <div class="kpi"><span>总播放量</span><strong id="totalViews">-</strong></div>
+      <div class="kpi"><span>总点赞量</span><strong id="totalLikes">-</strong></div>
+      <div class="kpi"><span>总收藏量</span><strong id="totalCollected">-</strong></div>
+    </section>
+    <section class="charts">
+      <div class="panel"><h3>点赞量 Top 10</h3><div id="likesChart" class="bars"></div></div>
+      <div class="panel secondary"><h3>评论量 Top 10</h3><div id="commentsChart" class="bars"></div></div>
+    </section>
+    <section class="data-section">
+      <h2 class="section-title">内容分析主表</h2>
+      <div class="controls">
+        <input id="search" placeholder="搜索标题、作者、内容 ID、关键词">
+        <select id="relevance"><option value="relevant">漫剧及相关</option><option value="all">全部</option><option value="明确漫剧">明确漫剧</option><option value="相关内容">相关内容</option><option value="弱相关">弱相关</option></select>
+        <select id="sort"><option value="likes">按点赞量</option><option value="views">按播放量</option><option value="collected">按收藏量</option><option value="comments">按评论量</option><option value="captured">按入库评论数</option></select>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>相关性</th><th>标题</th><th>作者</th><th>发布时间</th><th>播放</th><th>点赞</th><th>收藏</th><th>评论</th><th>入库评论</th><th>最高赞评论</th><th>关键词</th><th>链接</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div id="note" class="note"></div>
+    </section>
+  </main>
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>
