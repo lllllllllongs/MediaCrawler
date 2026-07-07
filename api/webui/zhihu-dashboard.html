@@ -1,0 +1,139 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>知乎数据看板</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body data-platform="zhihu">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">M</div><div><h1>MediaCrawler</h1><p>知乎内容数据分析</p></div></div>
+    <nav class="nav">
+      <a href="/">爬虫控制台</a><a href="/static/main.html">看板首页</a>
+      <a href="/static/kuaishou-dashboard.html">快手</a>
+      <a href="/static/douyin-dashboard.html">抖音</a>
+      <a href="/static/xiaohongshu-dashboard.html">小红书</a>
+      <a class="active" href="/static/zhihu-dashboard.html">知乎</a>
+    </nav>
+  </header>
+  <main class="page">
+    <div id="status" class="status">正在读取 JSON 数据...</div>
+    <section class="kpis">
+      <div class="kpi"><span>内容总数</span><strong id="contentCount">-</strong></div>
+      <div class="kpi"><span>总赞同数</span><strong id="totalVoteups">-</strong></div>
+      <div class="kpi"><span>总评论数</span><strong id="totalComments">-</strong></div>
+    </section>
+    <section class="charts">
+      <div class="panel"><h3>赞同量 Top 10</h3><div id="voteupsChart" class="bars"></div></div>
+      <div class="panel secondary"><h3>评论量 Top 10</h3><div id="commentsChart" class="bars"></div></div>
+    </section>
+    <section class="data-section">
+      <h2 class="section-title">内容分析主表</h2>
+      <div class="controls">
+        <input id="search" placeholder="搜索标题、作者、内容ID、关键词">
+        <select id="sort"><option value="voteup_count">按赞同量</option><option value="comment_count">按评论量</option></select>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>类型</th><th>描述</th><th>作者</th><th>发布时间</th><th>赞同</th><th>评论</th><th>关键词</th><th>链接</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div id="note" class="note"></div>
+    </section>
+  </main>
+  <script>
+    const state = { rows: [] };
+    const fmt = value => new Intl.NumberFormat("zh-CN").format(Number(value) || 0);
+    const esc = value => String(value ?? "").replace(/[&<>"\x27]/g, char => (
+      {"&":"&amp;","<":"&lt;",">":"&gt;","\x27":"&#39;","\"":"&quot;"}[char]
+    ));
+
+    function compact(value) {
+      const number = Number(value) || 0;
+      if (number >= 100000000) return `${(number / 100000000).toFixed(1)}亿`;
+      if (number >= 10000) return `${(number / 10000).toFixed(1)}万`;
+      return fmt(number);
+    }
+
+    const TYPE_LABELS = { article: "文章", answer: "回答", zvideo: "视频" };
+
+    function drawBars(target, rows, field) {
+      const max = Math.max(...rows.map(row => Number(row[field]) || 0), 1);
+      document.getElementById(target).innerHTML = rows.length ? rows.map(row => `
+        <div class="bar-row">
+          <div class="bar-label" title="${esc(row.desc || row.title)}">${esc(row.title || "无标题")}</div>
+          <div class="track"><div class="fill" style="width:${(Number(row[field]) || 0) / max * 100}%"></div></div>
+          <div>${fmt(row[field])}</div>
+        </div>`).join("") : '<div class="empty">暂无数据</div>';
+    }
+
+    function renderTable() {
+      const term = document.getElementById("search").value.trim().toLowerCase();
+      const sort = document.getElementById("sort").value;
+      const rows = state.rows.filter(row => {
+        const text = `${row.title} ${row.author} ${row.content_id} ${row.source_keyword} ${row.content_type}`.toLowerCase();
+        return !term || text.includes(term);
+      }).sort((a, b) => (Number(b[sort]) || 0) - (Number(a[sort]) || 0));
+
+      const body = document.getElementById("rows");
+      if (!rows.length) {
+        body.innerHTML = '<tr><td class="empty" colspan="8">当前筛选条件下暂无数据</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(row => {
+        const typeLabel = TYPE_LABELS[row.content_type] || row.content_type || "-";
+        return `<tr>
+          <td><span class="tag related">${esc(typeLabel)}</span></td>
+          <td class="title-cell">${esc(row.desc || row.title)}</td>
+          <td>${esc(row.author)}</td>
+          <td>${esc(row.publish_time)}</td>
+          <td>${fmt(row.voteup_count)}</td>
+          <td>${fmt(row.comment_count)}</td>
+          <td>${esc(row.source_keyword)}</td>
+          <td>${row.url ? `<a class="table-link" href="${esc(row.url)}" target="_blank" rel="noopener">查看</a>` : "-"}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    function renderDashboard(data) {
+      state.rows = data.rows;
+      const summary = data.summary;
+      document.getElementById("contentCount").textContent = fmt(summary.content_count);
+      document.getElementById("totalVoteups").textContent = compact(summary.total_voteups);
+      document.getElementById("totalComments").textContent = compact(summary.total_comments);
+
+      const topVoteups = [...state.rows].sort((a, b) => b.voteup_count - a.voteup_count).slice(0, 10);
+      const topComments = [...state.rows].sort((a, b) => b.comment_count - a.comment_count).slice(0, 10);
+      drawBars("voteupsChart", topVoteups, "voteup_count");
+      drawBars("commentsChart", topComments, "comment_count");
+      renderTable();
+
+      const updateTime = data.updated_at
+        ? new Date(data.updated_at).toLocaleString("zh-CN")
+        : "暂无记录";
+      const sources = data.rows.length ? " (" + data.rows.length + " 条)" : "";
+      document.getElementById("status").textContent =
+        `数据源：JSON File · 最近更新时间：${updateTime} · 每60秒自动刷新`;
+      document.getElementById("status").classList.remove("error");
+      document.getElementById("note").textContent =
+        `JSON 文件内容 ${summary.content_count} 条。赞同量为 0 表示该平台当前数据未提供赞同指标。`;
+    }
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch("/api/dashboard/zhihu", {cache: "no-store"});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || `读取失败 (${response.status})`);
+        renderDashboard(data);
+      } catch (error) {
+        const status = document.getElementById("status");
+        status.textContent = error.message;
+        status.classList.add("error");
+      }
+    }
+
+    ["search", "sort"].forEach(id => {
+      document.getElementById(id).addEventListener("input", renderTable);
+    });
+    loadDashboard();
+    window.setInterval(loadDashboard, 60000);
+  </script>
+</body>
+</html>
