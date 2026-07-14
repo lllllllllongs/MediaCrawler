@@ -161,6 +161,8 @@ async def get_platforms():
             {"value": "wb", "label": "Weibo", "icon": "message-circle"},
             {"value": "tieba", "label": "Baidu Tieba", "icon": "messages-square"},
             {"value": "zhihu", "label": "Zhihu", "icon": "help-circle"},
+            {"value": "cctv_news", "label": "社会新闻_央视网", "icon": "newspaper"},
+            {"value": "cctv_people", "label": "人物频道_央视网", "icon": "users"},
         ]
     }
 

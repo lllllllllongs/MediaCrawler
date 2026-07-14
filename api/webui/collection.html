@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>收录管理 - MediaCrawler</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+  <style>
+    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-bar select, .filter-bar input { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+    .filter-bar select { min-width: 140px; }
+    .edit-btn { padding: 4px 8px; border: 1px solid #6b7280; border-radius: 4px; background: #f9fafb; color: #374151; font-size: 11px; cursor: pointer; }
+    .edit-btn:hover { background: #e5e7eb; }
+    .uncollect-btn { padding: 4px 8px; border: 1px solid #ef4444; border-radius: 4px; background: #fef2f2; color: #dc2626; font-size: 11px; cursor: pointer; }
+    .uncollect-btn:hover { background: #fee2e2; }
+    .tag-badge { display: inline-block; margin: 0 2px; padding: 1px 6px; border-radius: 10px; background: #dbeafe; color: #1e40af; font-size: 11px; }
+    .notes-text { color: #6b7280; font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: #fff; border-radius: 8px; padding: 24px; max-width: 460px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,.15); }
+    .modal h3 { margin: 0 0 16px; }
+    .modal label { display: block; margin: 10px 0 4px; font-size: 13px; color: #374151; font-weight: 500; }
+    .modal input, .modal textarea { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
+    .modal textarea { min-height: 60px; resize: vertical; }
+    .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .save-btn { padding: 6px 16px; border: none; border-radius: 4px; background: #10b981; color: #fff; font-size: 13px; cursor: pointer; }
+    .save-btn:hover { background: #059669; }
+    .cancel-btn { padding: 6px 16px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: #374151; font-size: 13px; cursor: pointer; }
+    .stats { display: flex; gap: 16px; margin-bottom: 10px; font-size: 13px; color: #6b7280; }
+    .stats strong { color: #111827; }
+  </style>
+</head>
+<body data-page="collection">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">M</div><div><h1>MediaCrawler</h1><p>收录管理</p></div></div>
+    <nav class="nav">
+      <a href="/">爬虫控制台</a><a href="/static/main.html">看板首页</a>
+      <a href="/static/kuaishou-dashboard.html">快手</a>
+      <a href="/static/douyin-dashboard.html">抖音</a>
+      <a href="/static/xiaohongshu-dashboard.html">小红书</a>
+      <a href="/static/bilibili-dashboard.html">B站</a>
+      <a href="/static/weibo-dashboard.html">微博</a>
+      <a href="/static/tieba-dashboard.html">贴吧</a>
+      <a href="/static/zhihu-dashboard.html">知乎</a>
+      <a href="/static/cctv_news-dashboard.html">央视社会新闻</a>
+      <a href="/static/cctv_people-dashboard.html">央视人物</a>
+      <a class="active" href="/static/collection.html" style="color: #f59e0b; border-color: #f59e0b;">收录管理</a>
+    </nav>
+  </header>
+  <main class="page">
+    <h2 class="section-title">已收录内容</h2>
+    <div class="filter-bar">
+      <select id="platformFilter">
+        <option value="">全部平台</option>
+      </select>
+      <input id="searchBox" placeholder="搜索标题...">
+      <div class="stats">
+        <span>共 <strong id="totalCount">0</strong> 条</span>
+      </div>
+    </div>
+    <div id="status" class="status">正在加载...</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>平台</th><th>标题</th><th>作者</th><th>标签</th><th>备注</th><th>收录时间</th><th>操作</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <h3>编辑收录信息</h3>
+      <label>标签</label>
+      <input id="editTags" placeholder="逗号分隔">
+      <label>备注</label>
+      <textarea id="editNotes" placeholder="可选备注..."></textarea>
+      <div class="modal-btns">
+        <button class="cancel-btn" onclick="closeModal()">取消</button>
+        <button class="save-btn" onclick="saveEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var PLATFORM_LABELS = {
+      kuaishou: '快手', douyin: '抖音', xiaohongshu: '小红书',
+      bilibili: 'B站', weibo: '微博', tieba: '贴吧',
+      zhihu: '知乎', cctv_news: '央视社会新闻', cctv_people: '央视人物'
+    };
+    var state = { rows: [], editingRow: null };
+    var fmtTime = function(ts) { return ts ? new Date(ts * 1000).toLocaleString('zh-CN') : '-'; };
+
+    // Simple text escaping for display
+    function escText(v) {
+      v = String(v || '');
+      return v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Escape for HTML attribute value
+    function escAttr(v) {
+      return String(v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    }
+
+    async function loadData() {
+      try {
+        var resp = await fetch('/api/dashboard/collection', { cache: 'no-store' });
+        var data = await resp.json();
+        state.rows = data.rows || [];
+        document.getElementById('totalCount').textContent = state.rows.length;
+        document.getElementById('status').textContent = '已加载 ' + state.rows.length + ' 条收录记录';
+        document.getElementById('status').classList.remove('error');
+      } catch(e) {
+        document.getElementById('status').textContent = '加载失败: ' + e.message;
+        document.getElementById('status').classList.add('error');
+      }
+      renderTable();
+    }
+
+    function renderTable() {
+      var platform = document.getElementById('platformFilter').value;
+      var term = (document.getElementById('searchBox').value || '').trim().toLowerCase();
+      var rows = state.rows;
+      if (platform) rows = rows.filter(function(r) { return r.platform === platform; });
+      if (term) rows = rows.filter(function(r) { return (r.title || '').toLowerCase().indexOf(term) >= 0; });
+      var body = document.getElementById('rows');
+      if (!rows.length) {
+        body.innerHTML = '<tr><td class="empty" colspan="7">暂无收录内容</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(function(r) {
+        var platformLabel = PLATFORM_LABELS[r.platform] || r.platform;
+        var titleText = r.content_url ?
+          '<a href="' + escAttr(r.content_url) + '" target="_blank" rel="noopener" class="table-link">' + escText(r.title) + '</a>' :
+          escText(r.title);
+        var tagHtml = r.tags ?
+          r.tags.split(',').map(function(t) { return '<span class="tag-badge">' + escText(t.trim()) + '</span>'; }).join('') : '-';
+        return '<tr>' +
+          '<td>' + escText(platformLabel) + '</td>' +
+          '<td class="title-cell">' + titleText + '</td>' +
+          '<td>' + escText(r.author) + '</td>' +
+          '<td>' + tagHtml + '</td>' +
+          '<td><span class="notes-text" title="' + escAttr(r.notes) + '">' + escText(r.notes || '-') + '</span></td>' +
+          '<td>' + fmtTime(r.add_ts) + '</td>' +
+          '<td>' +
+            '<button class="edit-btn" data-action="edit" data-pid="' + escAttr(r.id) + '">编辑</button> ' +
+            '<button class="uncollect-btn" data-action="uncollect" data-pid="' + escAttr(r.id) + '">取消收录</button>' +
+          '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    // Event delegation
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.dataset.action;
+      var pid = parseInt(btn.dataset.pid);
+      if (action === 'edit') {
+        var row = state.rows.find(function(r) { return r.id === pid; });
+        if (row) openEdit(row);
+      } else if (action === 'uncollect') {
+        var row = state.rows.find(function(r) { return r.id === pid; });
+        if (row) uncollect(row);
+      }
+    });
+
+    function openEdit(row) {
+      state.editingRow = row;
+      document.getElementById('editTags').value = row.tags || '';
+      document.getElementById('editNotes').value = row.notes || '';
+      document.getElementById('editModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.remove('active');
+      state.editingRow = null;
+    }
+
+    async function saveEdit() {
+      var row = state.editingRow;
+      if (!row) return;
+      var tags = document.getElementById('editTags').value;
+      var notes = document.getElementById('editNotes').value;
+      try {
+        await fetch('/api/dashboard/collection', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform: row.platform, content_id: row.content_id, tags: tags, notes: notes })
+        });
+        closeModal();
+        loadData();
+      } catch(e) { alert('保存失败: ' + e); }
+    }
+
+    async function uncollect(row) {
+      if (!confirm('确定取消收录？')) return;
+      try {
+        await fetch('/api/dashboard/collection', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform: row.platform, content_id: row.content_id })
+        });
+        loadData();
+      } catch(e) { alert('取消收录失败: ' + e); }
+    }
+
+    document.getElementById('platformFilter').innerHTML = '<option value="">全部平台</option>' +
+      Object.keys(PLATFORM_LABELS).map(function(k) { return '<option value="' + k + '">' + PLATFORM_LABELS[k] + '</option>'; }).join('');
+    document.getElementById('searchBox').addEventListener('input', renderTable);
+    document.getElementById('platformFilter').addEventListener('change', function() { renderTable(); });
+    loadData();
+  </script>
+</body>
+</html>

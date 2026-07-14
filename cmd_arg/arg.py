@@ -47,6 +47,8 @@ class PlatformEnum(str, Enum):
     WEIBO = "wb"
     TIEBA = "tieba"
     ZHIHU = "zhihu"
+    CCTV_NEWS = "cctv_news"
+    CCTV_PEOPLE = "cctv_people"
 
 
 class LoginTypeEnum(str, Enum):

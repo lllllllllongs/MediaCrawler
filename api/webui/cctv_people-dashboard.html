@@ -1,0 +1,151 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>央视人物频道 - 数据看板</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body data-platform="cctv_people">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">M</div><div><h1>MediaCrawler</h1><p>央视人物频道数据分析</p></div></div>
+    <nav class="nav">
+      <a href="/">爬虫控制台</a><a href="/static/main.html">看板首页</a>
+      <a href="/static/kuaishou-dashboard.html">快手</a>
+      <a href="/static/douyin-dashboard.html">抖音</a>
+      <a href="/static/xiaohongshu-dashboard.html">小红书</a>
+      <a href="/static/bilibili-dashboard.html">B站</a>
+      <a href="/static/weibo-dashboard.html">微博</a>
+      <a href="/static/tieba-dashboard.html">贴吧</a>
+      <a href="/static/zhihu-dashboard.html">知乎</a>
+      <a class="active" href="/static/cctv_people-dashboard.html">央视人物</a>
+      <a href="/static/cctv_news-dashboard.html">央视社会新闻</a>
+      <a href="/static/collection.html" style="color: #f59e0b; border-color: #f59e0b;">收录管理</a>
+    </nav>
+  </header>
+  <main class="page">
+    <div class="page-heading">
+      <h2>人物频道_央视网</h2>
+      <p>数据来源: people.cctv.com (JSONP API)</p>
+    </div>
+    <div id="status" class="status">正在读取数据...</div>
+    <section class="data-section">
+      <h2 class="section-title">文章列表</h2>
+      <div class="controls">
+        <input id="search" placeholder="搜索标题、摘要、关键词">
+        <select id="sort">
+          <option value="publish_time">按发布时间</option>
+          <option value="title">按标题</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table><thead><tr>
+        <th>标题</th><th>摘要</th><th>发布时间</th><th>关键词</th><th>链接</th>
+      </tr></thead><tbody id="rows"></tbody></table></div>
+      <div id="note" class="note"></div>
+    </section>
+  </main>
+  <script>
+    const state = { rows: [] };
+
+    async function loadData() {
+      const status = document.getElementById("status");
+      try {
+        const r = await fetch("/api/dashboard/cctv_people", {cache: "no-store"});
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || "读取失败");
+        state.rows = data.rows || [];
+        status.textContent = "共 " + state.rows.length + " 篇文章";
+        status.classList.remove("error");
+      } catch(e) {
+        status.textContent = e.message;
+        status.classList.add("error");
+      }
+      renderTable();
+    }
+
+    function renderTable() {
+      const term = (document.getElementById("search").value || "").trim().toLowerCase();
+      const sort = document.getElementById("sort").value;
+      let rows = state.rows.filter(r => {
+        const text = (r.title + " " + r.brief + " " + r.source_keyword).toLowerCase();
+        return !term || text.includes(term);
+      });
+      rows.sort((a, b) => {
+        if (sort === "publish_time") return (b.publish_time || "").localeCompare(a.publish_time || "");
+        return (a.title || "").localeCompare(b.title || "");
+      });
+      const body = document.getElementById("rows");
+      if (!rows.length) {
+        body.innerHTML = '<tr><td class="empty" colspan="6">暂无数据</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(r => "<tr>" +
+        "<td class='title-cell'>" + esc(r.title) + "</td>" +
+        "<td class='title-cell'>" + esc(r.brief).substring(0, 80) + "</td>" +
+        "<td>" + esc(r.publish_time) + "</td>" +
+        "<td>" + esc(r.source_keyword) + "</td>" +
+        '<td><a href="' + esc(r.article_url) + '" target="_blank">查看</a></td>' +
+        "</tr>").join("");
+    }
+
+    function esc(v) { return String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+    document.getElementById("search").addEventListener("input", renderTable);
+    document.getElementById("sort").addEventListener("change", renderTable);
+    loadData();
+    setInterval(loadData, 60000);
+
+    // --- Collection helpers ---
+    var cCollectionMap = {};
+    async function loadCollectionStatuses() {
+      try {
+        var resp = await fetch('/api/dashboard/collection', { cache: 'no-store' });
+        var data = await resp.json();
+        data.rows.forEach(function(r) { cCollectionMap[r.platform + ':' + r.content_id] = { collected: true, tags: r.tags, notes: r.notes }; });
+      } catch(e) {}
+    }
+    function renderCollectBtn(platform, row) {
+      var key = platform + ':' + row.content_id;
+      var collected = cCollectionMap[key] && cCollectionMap[key].collected;
+      var pid = JSON.stringify(platform);
+      var cid = JSON.stringify(row.content_id);
+      var ttl = JSON.stringify(row.title || '');
+      var url = JSON.stringify(row.url || row.article_url || '');
+      var aut = JSON.stringify(row.author || row.source || '');
+      if (collected) {
+        return '<span class="collected-badge" onclick="toggleCollect(' + pid + ',' + cid + ',' + ttl + ',' + url + ',' + aut + ')" title="点击取消收录">已收录</span>';
+      }
+      return '<button class="collect-btn" onclick="toggleCollect(' + pid + ',' + cid + ',' + ttl + ',' + url + ',' + aut + ')">收录</button>';
+    }
+    async function toggleCollect(platform, content_id, title, url, author) {
+      var key = platform + ':' + content_id;
+      if (cCollectionMap[key] && cCollectionMap[key].collected) {
+        try {
+          await fetch('/api/dashboard/collection', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform: platform, content_id: content_id })
+          });
+          cCollectionMap[key] = null;
+          renderTable();
+        } catch(e) { alert('取消收录失败'); }
+      } else {
+        var tags = prompt('请输入标签（可选，逗号分隔）:') || '';
+        var notes = prompt('请输入备注（可选）:') || '';
+        try {
+          await fetch('/api/dashboard/collection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform: platform, content_id: content_id, title: title, content_url: url, author: author, tags: tags, notes: notes })
+          });
+          cCollectionMap[key] = { collected: true, tags: tags, notes: notes };
+          renderTable();
+        } catch(e) { alert('收录失败: ' + e); }
+      }
+    }
+    var _origLoadData = loadData;
+    loadData = async function() { await loadCollectionStatuses(); return _origLoadData(); };
+
+  </script>
+</body>
+</html>

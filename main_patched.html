@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediaCrawler 数据看板</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">M</div>
+      <div><h1>MediaCrawler</h1><p>多平台内容监测</p></div>
+    </div>
+    <nav class="nav">
+      <a href="/">爬虫控制台</a>
+      <a class="active" href="/static/main.html">看板首页</a>
+      <a href="/static/kuaishou-dashboard.html">快手</a>
+      <a href="/static/douyin-dashboard.html">抖音</a>
+      <a href="/static/xiaohongshu-dashboard.html">小红书</a>
+      <a href="/static/zhihu-dashboard.html">知乎</a>
+    </nav>
+  </header>
+  <main class="page">
+    <div class="page-heading">
+      <h2>平台数据总览</h2>
+      <p>选择平台查看内容、互动指标与高赞评论。</p>
+    </div>
+    <div id="status" class="status">正在读取数据...</div>
+    <section id="platformGrid" class="platform-grid"></section>
+  </main>
+  <script>
+    const links = {
+      kuaishou: "/static/kuaishou-dashboard.html",
+      douyin: "/static/douyin-dashboard.html",
+      xiaohongshu: "/static/xiaohongshu-dashboard.html",
+      zhihu: "/static/zhihu-dashboard.html"
+    };
+    const fmt = value => new Intl.NumberFormat("zh-CN").format(Number(value) || 0);
+    const compact = value => {
+      const number = Number(value) || 0;
+      if (number >= 100000000) return `${(number / 100000000).toFixed(1)}亿`;
+      if (number >= 10000) return `${(number / 10000).toFixed(1)}万`;
+      return fmt(number);
+    };
+    function renderMetrics(item) {
+      if (item.platform === "zhihu") {
+        return `
+          <div class="metric"><span>总赞同</span><strong>${compact(item.total_voteups)}</strong></div>
+          <div class="metric"><span>总评论</span><strong>${compact(item.total_comments)}</strong></div>`;
+      }
+      return `
+        <div class="metric"><span>漫剧及相关</span><strong>${fmt(item.relevant_count)}</strong></div>
+        <div class="metric"><span>评论入库</span><strong>${fmt(item.captured_comments)}</strong></div>
+        <div class="metric"><span>总点赞</span><strong>${compact(item.total_likes)}</strong></div>
+        <div class="metric"><span>总收藏</span><strong>${compact(item.total_collected)}</strong></div>`;
+    }
+    async function loadSummary() {
+      const status = document.getElementById("status");
+      try {
+        const response = await fetch("/api/dashboard/summary", {cache: "no-store"});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || `读取失败 (${response.status})`);
+        document.getElementById("platformGrid").innerHTML = data.platforms.map(item => `
+          <a class="platform-card" href="${links[item.platform]}">
+            <header><h3>${item.platform_label}</h3><span class="count">${fmt(item.content_count)}</span></header>
+            <div class="metrics">${renderMetrics(item)}</div>
+            <div class="open-label">打开${item.platform_label}看板 &rarr;</div>
+          </a>`).join("");
+        const sources = data.platforms.map(p => `${p.platform_label}(${p.platform === "zhihu" ? "JSON" : "MySQL"})`).join(", ");
+        status.textContent = `数据源：${sources} · 页面每60秒自动刷新`;
+        status.classList.remove("error");
+      } catch (error) {
+        status.textContent = error.message;
+        status.classList.add("error");
+      }
+    }
+    loadSummary();
+    window.setInterval(loadSummary, 60000);
+  </script>
+</body>
+</html>

@@ -228,3 +228,47 @@ async def get_data_stats():
                 continue
 
     return stats
+
+
+# ---- CCTV Data Endpoints ----
+
+def _load_jsonl_data(platform_name: str):
+    """Load data from JSONL/JSON files for a platform"""
+    data_dir = Path(__file__).parent.parent.parent / "data" / platform_name
+    rows = []
+    if data_dir.exists():
+        for root, dirs, files in os.walk(str(data_dir)):
+            for file in files:
+                filepath = os.path.join(root, file)
+                try:
+                    if file.endswith('.jsonl'):
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line:
+                                    try:
+                                        rows.append(json.loads(line))
+                                    except json.JSONDecodeError:
+                                        pass
+                    elif file.endswith('.json'):
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            if isinstance(data, list):
+                                rows.extend(data)
+                            elif isinstance(data, dict):
+                                rows.append(data)
+                except Exception:
+                    pass
+    return rows
+
+
+@router.get("/cctv_news")
+async def get_cctv_news_data():
+    rows = _load_jsonl_data("cctv_news")
+    return {"platform": "cctv_news", "rows": rows}
+
+
+@router.get("/cctv_people")
+async def get_cctv_people_data():
+    rows = _load_jsonl_data("cctv_people")
+    return {"platform": "cctv_people", "rows": rows}

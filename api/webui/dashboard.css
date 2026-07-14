@@ -148,3 +148,37 @@ tr:hover td { background: #f0fafa; }
   .charts { grid-template-columns: 1fr; }
   .bar-row { grid-template-columns: minmax(90px, 1.3fr) 2fr 62px; }
 }
+
+
+/* --- Collection styles --- */
+.collect-btn {
+  padding: 4px 10px;
+  border: 1px solid #10b981;
+  border-radius: 4px;
+  background: #10b981;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.collect-btn:hover {
+  background: #059669;
+}
+.collected-badge {
+  padding: 4px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.collected-badge:hover {
+  background: #fde68a;
+}
+.collect-cell {
+  min-width: 70px;
+}

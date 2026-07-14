@@ -24,4 +24,6 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from .base_config import *
+from .cctv_news_config import *
+from .cctv_people_config import *
 from .db_config import *

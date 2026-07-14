@@ -456,3 +456,17 @@ class ZhihuCreator(Base):
     get_voteup_count = Column(Integer, default=0, comment='获赞数')
     add_ts = Column(BigInteger, comment='添加时间戳')
     last_modify_ts = Column(BigInteger, comment='最后修改时间戳')
+
+class CollectionRecord(Base):
+    __tablename__ = 'collection_record'
+    id = Column(Integer, primary_key=True, autoincrement=True, comment='??ID')
+    platform = Column(String(32), nullable=False, index=True, comment='????')
+    content_id = Column(String(64), nullable=False, index=True, comment='??ID')
+    title = Column(Text, comment='??')
+    content_url = Column(Text, comment='??URL')
+    author = Column(Text, comment='??')
+    tags = Column(Text, comment='???????')
+    notes = Column(Text, comment='??')
+    add_ts = Column(BigInteger, comment='?????')
+    last_modify_ts = Column(BigInteger, comment='???????')
+
