@@ -1,4 +1,4 @@
-const PLATFORM_CONFIG = {
+﻿const PLATFORM_CONFIG = {
   kuaishou: { label: '\u5feb\u624b', api: '/api/dashboard/kuaishou' },
   douyin: { label: '\u6296\u97f3', api: '/api/dashboard/douyin' },
   xiaohongshu: { label: '\u5c0f\u7ea2\u4e66', api: '/api/dashboard/xiaohongshu' },
@@ -128,7 +128,7 @@ function renderTable() {
       h += '<td>' + fmt(row.share_count) + '</td>';
     }
     h += '<td>' + esc(row.source_keyword) + '</td>';
-    h += '<td>' + (row.url ? '<a class="table-link" href="' + esc(row.url) + '" target="_blank" rel="noopener">\u67e5\u770b</a>' : '-') + '</td>';
+    h += '<td class="link-cell">' + (row.url ? '<a class="table-link" href="' + esc(row.url) + '" target="_blank" rel="noopener">查看</a> <button class="copy-link-btn" data-action="copy-link" data-url="' + esc(row.url) + '" title="复制链接">📋</button>' : '-') + '</td>';
     var cell = renderCollectCell(row);
     h += '<td class="collect-cell">' + cell + '</td>';
     h += '</tr>';
@@ -154,6 +154,17 @@ document.addEventListener('click', function(e) {
     handleCollect(platform, cid, rowData.t || '', rowData.u || '', rowData.a || '');
   } else if (action === 'uncollect') {
     handleUncollect(platform, cid);
+  } else if (action === 'copy-link') {
+    var url = btn.dataset.url;
+    if (url) {
+      navigator.clipboard.writeText(url).then(function() {
+        var orig = btn.textContent;
+        btn.textContent = '✅';
+        setTimeout(function() { btn.textContent = orig; }, 1500);
+      }).catch(function() {
+        alert('复制失败，请手动复制');
+      });
+    }
   }
 });
 
